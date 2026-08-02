@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-jinja2
-httpx2
-reportlab
-arabic-reshaper
-python-bidi
