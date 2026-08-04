@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#075e54">
+  <title>متابعة رسائل واتساب</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell header-content">
+      <div>
+        <p class="eyebrow">مساحة عمل مشتركة</p>
+        <h1>متابعة رسائل واتساب</h1>
+        <p class="subtitle">احفظ الرسالة، استورد الأرقام، ثم افتح المحادثات واحدة تلو الأخرى.</p>
+      </div>
+      <button class="button button-quiet" id="refresh-button" type="button">
+        تحديث القائمة
+      </button>
+    </div>
+  </header>
+
+  <main class="shell main-layout">
+    <section class="panel setup-panel" aria-labelledby="message-heading">
+      <div class="section-heading">
+        <div>
+          <p class="step-label">الخطوة 1</p>
+          <h2 id="message-heading">نص الرسالة</h2>
+        </div>
+        <span class="save-state" id="message-state" aria-live="polite"></span>
+      </div>
+      <label class="sr-only" for="message-input">نص رسالة واتساب</label>
+      <textarea id="message-input" maxlength="2000" rows="5"
+        placeholder="اكتب الرسالة التي ستظهر جاهزة في واتساب…"></textarea>
+      <div class="field-footer">
+        <span id="message-count">0 / 2000</span>
+        <button class="button button-primary" id="save-message" type="button">حفظ الرسالة</button>
+      </div>
+    </section>
+
+    <section class="panel setup-panel" aria-labelledby="import-heading">
+      <div class="section-heading">
+        <div>
+          <p class="step-label">الخطوة 2</p>
+          <h2 id="import-heading">استيراد الأرقام</h2>
+        </div>
+      </div>
+      <p class="hint">ملف TXT بترميز UTF-8، رقم دولي واحد في كل سطر، وبحد أقصى 20,000 رقم.</p>
+      <div class="upload-row">
+        <label class="file-picker" for="numbers-file">
+          <span id="file-name">اختر ملف numbers.txt</span>
+          <input id="numbers-file" type="file" accept=".txt,text/plain">
+        </label>
+        <button class="button button-secondary" id="preview-import" type="button">معاينة الملف</button>
+      </div>
+
+      <div class="preview" id="import-preview" hidden>
+        <div class="preview-summary" id="preview-summary"></div>
+        <div class="issue-list" id="issue-list"></div>
+        <div class="preview-actions">
+          <p class="danger-note">سيؤدي التأكيد إلى استبدال القائمة الحالية مع الاحتفاظ بحالة الأرقام المتطابقة.</p>
+          <button class="button button-danger" id="commit-import" type="button">تأكيد استبدال القائمة</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tracker" aria-labelledby="contacts-heading">
+      <div class="stats" aria-label="ملخص القائمة">
+        <article class="stat-card">
+          <span>كل الأرقام</span>
+          <strong id="total-count">0</strong>
+        </article>
+        <article class="stat-card pending-stat">
+          <span>بانتظار الإرسال</span>
+          <strong id="pending-count">0</strong>
+        </article>
+        <article class="stat-card completed-stat">
+          <span>تم فتحها</span>
+          <strong id="completed-count">0</strong>
+        </article>
+      </div>
+
+      <div class="panel contacts-panel">
+        <div class="contacts-header">
+          <div>
+            <p class="step-label">الخطوة 3</p>
+            <h2 id="contacts-heading">قائمة الأرقام</h2>
+          </div>
+          <span class="result-count" id="result-count"></span>
+        </div>
+
+        <div class="toolbar">
+          <label class="search-field" for="search-input">
+            <span class="sr-only">البحث في الأرقام</span>
+            <input id="search-input" type="search" inputmode="numeric" placeholder="ابحث برقم الهاتف">
+          </label>
+          <div class="filters" id="status-filters" role="group" aria-label="تصفية حسب الحالة">
+            <button class="filter active" type="button" data-status="all">الكل</button>
+            <button class="filter" type="button" data-status="pending">بانتظار الإرسال</button>
+            <button class="filter" type="button" data-status="completed">تم فتحها</button>
+          </div>
+        </div>
+
+        <div id="list-status" class="list-status" role="status"></div>
+        <div class="table-wrap" id="contacts-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">الحالة</th>
+                <th scope="col">رقم الهاتف</th>
+                <th scope="col">الترتيب</th>
+              </tr>
+            </thead>
+            <tbody id="contacts-body"></tbody>
+          </table>
+        </div>
+
+        <nav class="pagination" aria-label="صفحات الأرقام">
+          <button class="button button-quiet" id="previous-page" type="button">السابق</button>
+          <span id="page-label">الصفحة 1 من 1</span>
+          <button class="button button-quiet" id="next-page" type="button">التالي</button>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
+
