@@ -1,6 +1,6 @@
 # WhatsApp Number Tracker
 
-A small Arabic RTL web application for importing a shared list of international phone numbers, opening a prefilled WhatsApp message, and tracking which chats have been opened. State is stored in SQLite and is shared across browsers and devices.
+A small Arabic RTL web application for importing a shared list of Iraqi mobile numbers, opening a prefilled WhatsApp message, and tracking which chats have been opened. State is stored in SQLite and is shared across browsers and devices.
 
 ## Important behavior
 
@@ -11,15 +11,17 @@ A small Arabic RTL web application for importing a shared list of international 
 
 ## Number file format
 
-Upload a UTF-8 `.txt` file containing one international number per line:
+Upload a UTF-8 `.txt` file containing one Iraqi mobile number per line. Common local and international representations are accepted:
 
 ```text
-+989121234567
-971501234567
-+12025550101
+0750 123 4567
+7501234567
+9647501234567
++964 750 123 4567
+00964 750 123 4567
 ```
 
-The leading `+` is optional. Each number must otherwise contain 7–15 digits and cannot start with zero. Blank lines are ignored; invalid and duplicate lines are shown in the preview and skipped after confirmation. Files are limited to 2 MiB and 20,000 valid unique numbers.
+Whitespace is removed before validation, and every valid number is stored as `+9647#########`. Other country codes, punctuation, and incorrectly sized numbers are invalid. Blank lines are ignored; invalid and duplicate lines are shown in the preview and skipped after confirmation. Files are limited to 2 MiB and 20,000 valid unique numbers.
 
 ## Run with Docker Compose
 

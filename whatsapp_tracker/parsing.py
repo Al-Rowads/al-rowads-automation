@@ -5,7 +5,8 @@ import re
 from dataclasses import dataclass
 
 
-PHONE_PATTERN = re.compile(r"^\+?[1-9][0-9]{6,14}$")
+IRAQI_MOBILE_PATTERN = re.compile(r"^7[0-9]{9}$")
+WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
 class UploadValidationError(ValueError):
@@ -38,6 +39,25 @@ class ParseResult:
         return sum(issue.reason == "duplicate" for issue in self.issues)
 
 
+def _normalize_iraqi_mobile(value: str) -> str | None:
+    compact_value = WHITESPACE_PATTERN.sub("", value)
+
+    if compact_value.startswith("+964"):
+        subscriber_number = compact_value[4:]
+    elif compact_value.startswith("00964"):
+        subscriber_number = compact_value[5:]
+    elif compact_value.startswith("964"):
+        subscriber_number = compact_value[3:]
+    elif compact_value.startswith("0"):
+        subscriber_number = compact_value[1:]
+    else:
+        subscriber_number = compact_value
+
+    if IRAQI_MOBILE_PATTERN.fullmatch(subscriber_number) is None:
+        return None
+    return f"+964{subscriber_number}"
+
+
 def parse_numbers_file(raw: bytes, max_contacts: int = 20_000) -> ParseResult:
     try:
         text = raw.decode("utf-8-sig")
@@ -58,11 +78,11 @@ def parse_numbers_file(raw: bytes, max_contacts: int = 20_000) -> ParseResult:
             blank_count += 1
             continue
 
-        if PHONE_PATTERN.fullmatch(value) is None:
+        normalized = _normalize_iraqi_mobile(value)
+        if normalized is None:
             issues.append(ParseIssue(line_number, value, "invalid"))
             continue
 
-        normalized = f"+{value.removeprefix('+')}"
         if normalized in seen:
             issues.append(ParseIssue(line_number, value, "duplicate"))
             continue
@@ -78,7 +98,7 @@ def parse_numbers_file(raw: bytes, max_contacts: int = 20_000) -> ParseResult:
     if not numbers:
         raise UploadValidationError(
             "no_valid_contacts",
-            "لا يحتوي الملف على أي رقم دولي صالح.",
+            "لا يحتوي الملف على أي رقم جوال عراقي صالح.",
         )
 
     return ParseResult(
