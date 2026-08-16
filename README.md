@@ -27,7 +27,7 @@ The leading `+` is optional. Each number must otherwise contain 7–15 digits an
 docker compose up --build -d
 ```
 
-Open `http://SERVER_IP:8000`. To use another host port, set `APP_PORT`:
+Open `http://SERVER_IP:3001`. To use another host port, set `APP_PORT`:
 
 ```bash
 APP_PORT=8080 docker compose up --build -d

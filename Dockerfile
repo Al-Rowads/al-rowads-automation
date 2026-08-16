@@ -15,7 +15,7 @@ COPY whatsapp_tracker ./whatsapp_tracker
 RUN mkdir -p /data && chown -R tracker:tracker /data /app
 
 USER tracker
-EXPOSE 8000
+EXPOSE 3001
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-", "whatsapp_tracker:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3001", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-", "whatsapp_tracker:create_app()"]
 
