@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import io
 import sqlite3
 from urllib.parse import quote
 
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 
 from .db import get_db, utc_now
+from .images import NormalizedPhoto, PhotoValidationError, normalize_photo
 from .parsing import ParseResult, UploadValidationError, parse_numbers_file
 
 
@@ -15,6 +26,56 @@ ISSUE_DETAIL_LIMIT = 200
 
 def json_error(code: str, message: str, status: int):
     return jsonify(error=code, message=message), status
+
+
+def validate_message(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("missing")
+    message = value.strip()
+    if not message or len(message) > 2_000:
+        raise ValueError("length")
+    return message
+
+
+def photo_metadata(row: sqlite3.Row | None) -> dict | None:
+    if row is None:
+        return None
+    version = row["digest"][:16]
+    return {
+        "url": url_for("tracker.message_photo", v=version),
+        "download_url": url_for("tracker.message_photo", download=1, v=version),
+        "width": row["width"],
+        "height": row["height"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def current_photo_metadata(connection: sqlite3.Connection) -> dict | None:
+    row = connection.execute(
+        "SELECT digest, width, height, updated_at FROM workspace_photo WHERE id = 1"
+    ).fetchone()
+    return photo_metadata(row)
+
+
+def read_photo_upload() -> NormalizedPhoto:
+    upload = request.files.get("photo")
+    if upload is None or not upload.filename:
+        raise PhotoValidationError("missing_photo", "اختر صورة لحفظها مع القالب.", 400)
+
+    limit = current_app.config["PHOTO_UPLOAD_MAX_BYTES"]
+    raw = upload.stream.read(limit + 1)
+    if len(raw) > limit:
+        raise PhotoValidationError(
+            "photo_too_large",
+            "حجم الصورة يتجاوز الحد الأقصى المسموح به (10 ميجابايت).",
+            413,
+        )
+    return normalize_photo(
+        raw,
+        max_pixels=current_app.config["PHOTO_MAX_PIXELS"],
+        max_dimension=current_app.config["PHOTO_MAX_DIMENSION"],
+        max_output_bytes=current_app.config["PHOTO_OUTPUT_MAX_BYTES"],
+    )
 
 
 def read_uploaded_file() -> tuple[bytes, ParseResult]:
@@ -88,6 +149,8 @@ def contacts():
     workspace = connection.execute(
         "SELECT message, list_revision, updated_at FROM workspace WHERE id = 1"
     ).fetchone()
+    workspace_payload = dict(workspace)
+    workspace_payload["photo"] = current_photo_metadata(connection)
     counts = connection.execute(
         """
         SELECT COUNT(*) AS total,
@@ -112,7 +175,7 @@ def contacts():
     ).fetchall()
 
     return jsonify(
-        workspace=dict(workspace),
+        workspace=workspace_payload,
         counts=dict(counts),
         filtered_total=filtered_total,
         page=page,
@@ -130,11 +193,14 @@ def contacts():
 @bp.put("/api/message")
 def update_message():
     payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
+    if not isinstance(payload, dict):
         return json_error("invalid_message", "نص الرسالة مطلوب.", 400)
 
-    message = payload["message"].strip()
-    if not message or len(message) > 2_000:
+    try:
+        message = validate_message(payload.get("message"))
+    except ValueError as error:
+        if str(error) == "missing":
+            return json_error("invalid_message", "نص الرسالة مطلوب.", 400)
         return json_error(
             "invalid_message",
             "يجب أن يتراوح نص الرسالة بين حرف واحد و2000 حرف.",
@@ -149,6 +215,104 @@ def update_message():
     )
     connection.commit()
     return jsonify(message=message, updated_at=updated_at)
+
+
+@bp.put("/api/message-template")
+def update_message_template():
+    try:
+        message = validate_message(request.form.get("message"))
+    except ValueError as error:
+        if str(error) == "missing":
+            return json_error("invalid_message", "نص الرسالة مطلوب.", 400)
+        return json_error(
+            "invalid_message",
+            "يجب أن يتراوح نص الرسالة بين حرف واحد و2000 حرف.",
+            422,
+        )
+
+    photo_action = request.form.get("photo_action")
+    if photo_action not in {"keep", "replace", "remove"}:
+        return json_error(
+            "invalid_photo_action",
+            "إجراء الصورة غير صالح.",
+            400,
+        )
+
+    normalized_photo = None
+    if photo_action == "replace":
+        try:
+            normalized_photo = read_photo_upload()
+        except PhotoValidationError as error:
+            return json_error(error.code, error.message, error.status)
+
+    updated_at = utc_now()
+    connection = get_db()
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            "UPDATE workspace SET message = ?, updated_at = ? WHERE id = 1",
+            (message, updated_at),
+        )
+        if photo_action == "replace" and normalized_photo is not None:
+            connection.execute(
+                """
+                INSERT INTO workspace_photo
+                    (id, content, digest, width, height, updated_at)
+                VALUES (1, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    content = excluded.content,
+                    digest = excluded.digest,
+                    width = excluded.width,
+                    height = excluded.height,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    normalized_photo.content,
+                    normalized_photo.digest,
+                    normalized_photo.width,
+                    normalized_photo.height,
+                    updated_at,
+                ),
+            )
+        elif photo_action == "remove":
+            connection.execute("DELETE FROM workspace_photo WHERE id = 1")
+        connection.commit()
+    except sqlite3.Error:
+        connection.rollback()
+        current_app.logger.exception("Failed to update the message template")
+        return json_error(
+            "database_error",
+            "تعذّر حفظ قالب الرسالة. لم يتم تغيير القالب الحالي.",
+            500,
+        )
+
+    return jsonify(
+        message=message,
+        photo=current_photo_metadata(connection),
+        updated_at=updated_at,
+    )
+
+
+@bp.get("/api/message-photo")
+def message_photo():
+    row = get_db().execute(
+        "SELECT content, digest FROM workspace_photo WHERE id = 1"
+    ).fetchone()
+    if row is None:
+        return json_error("photo_not_found", "لم تُحفظ صورة مع القالب.", 404)
+
+    response = send_file(
+        io.BytesIO(row["content"]),
+        mimetype="image/png",
+        as_attachment=request.args.get("download") == "1",
+        download_name="message-photo.png",
+        conditional=False,
+        etag=False,
+        max_age=0,
+    )
+    response.set_etag(row["digest"])
+    response.headers["Cache-Control"] = "private, no-cache"
+    return response.make_conditional(request)
 
 
 @bp.post("/api/imports/preview")
@@ -278,6 +442,39 @@ def update_contact(contact_id: int):
         return json_error("contact_not_found", "الرقم غير موجود.", 404)
     connection.commit()
     return jsonify(id=contact_id, completed=completed, completed_at=completed_at)
+
+
+@bp.get("/contacts/<int:contact_id>/prepare")
+def prepare_whatsapp(contact_id: int):
+    connection = get_db()
+    row = connection.execute(
+        """
+        SELECT contacts.phone, workspace.message
+        FROM contacts CROSS JOIN workspace
+        WHERE contacts.id = ? AND workspace.id = 1
+        """,
+        (contact_id,),
+    ).fetchone()
+    if row is None:
+        return render_template(
+            "error.html",
+            title="الرقم غير موجود",
+            message="ربما استُبدلت القائمة من جهاز آخر.",
+        ), 404
+    if not row["message"].strip():
+        return render_template(
+            "error.html",
+            title="لم تُحفظ الرسالة",
+            message="احفظ نص الرسالة قبل فتح واتساب.",
+        ), 422
+
+    return render_template(
+        "prepare.html",
+        contact_id=contact_id,
+        phone=row["phone"],
+        message=row["message"],
+        photo=current_photo_metadata(connection),
+    )
 
 
 @bp.post("/contacts/<int:contact_id>/open")

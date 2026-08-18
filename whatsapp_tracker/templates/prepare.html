@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#075e54">
+  <title>تجهيز رسالة واتساب</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script defer src="{{ url_for('static', filename='prepare.js') }}"></script>
+</head>
+<body class="prepare-page">
+  <main class="panel prepare-card" id="prepare-card"
+    data-photo-url="{{ photo.url if photo else '' }}">
+    <p class="step-label">تجهيز الرسالة</p>
+    <h1>انسخ الصورة وافتح واتساب</h1>
+    <p class="prepare-phone" dir="ltr">{{ phone }}</p>
+
+    {% if photo %}
+      <img class="prepare-photo" src="{{ photo.url }}" alt="الصورة المحفوظة مع قالب الرسالة">
+    {% endif %}
+
+    <div class="prepare-message">
+      <span>النص الجاهز في واتساب</span>
+      <p>{{ message }}</p>
+    </div>
+
+    <p class="hint">بعد فتح واتساب، الصق الصورة في المحادثة. قد تظهر الصورة والنص كرسالتين منفصلتين.</p>
+    <p class="prepare-status" id="prepare-status" role="status" aria-live="polite">
+      {% if photo %}جارٍ تجهيز الصورة…{% else %}لم تعد هناك صورة محفوظة. يمكنك فتح واتساب بالنص فقط.{% endif %}
+    </p>
+
+    <button class="button button-primary prepare-primary" id="copy-and-open" type="button"
+      {% if not photo %}hidden{% else %}disabled{% endif %}>
+      نسخ الصورة وفتح واتساب
+    </button>
+
+    <div class="prepare-fallback" id="prepare-fallback" {% if photo %}hidden{% endif %}>
+      <p>إذا تعذّر النسخ، نزّل الصورة ثم أرفقها يدوياً.</p>
+      {% if photo %}
+        <a class="button button-secondary" id="download-photo" href="{{ photo.download_url }}">تنزيل الصورة</a>
+      {% endif %}
+      <form method="post" action="{{ url_for('tracker.open_whatsapp', contact_id=contact_id) }}">
+        <button class="button button-primary" type="submit">فتح واتساب</button>
+      </form>
+    </div>
+
+    <form id="open-whatsapp-form" method="post"
+      action="{{ url_for('tracker.open_whatsapp', contact_id=contact_id) }}" hidden></form>
+  </main>
+</body>
+</html>

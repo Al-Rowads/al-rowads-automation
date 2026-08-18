@@ -7,7 +7,10 @@ const state = {
   search: "",
   pages: 1,
   savedMessage: "",
+  savedPhoto: null,
   messageDirty: false,
+  photoAction: "keep",
+  localPhotoUrl: null,
   preview: null,
   previewFile: null,
   loading: false,
@@ -18,6 +21,11 @@ const elements = {
   messageCount: document.querySelector("#message-count"),
   messageState: document.querySelector("#message-state"),
   saveMessage: document.querySelector("#save-message"),
+  photoInput: document.querySelector("#photo-input"),
+  photoFileName: document.querySelector("#photo-file-name"),
+  photoPreview: document.querySelector("#photo-preview"),
+  photoPlaceholder: document.querySelector("#photo-placeholder"),
+  removePhoto: document.querySelector("#remove-photo"),
   numbersFile: document.querySelector("#numbers-file"),
   fileName: document.querySelector("#file-name"),
   previewButton: document.querySelector("#preview-import"),
@@ -105,9 +113,12 @@ async function loadContacts({ quiet = false } = {}) {
     renderContacts(payload.contacts);
     renderCounts(payload);
 
-    if (!state.messageDirty) {
+    if (!templateIsDirty()) {
       state.savedMessage = payload.workspace.message;
+      state.savedPhoto = payload.workspace.photo;
       elements.messageInput.value = state.savedMessage;
+      state.photoAction = "keep";
+      renderSavedPhoto();
       updateMessageCount();
       elements.messageState.textContent = state.savedMessage ? "محفوظة" : "لم تُحفظ رسالة بعد";
     }
@@ -167,16 +178,24 @@ async function handleContactToggle(contact, checkbox, row) {
       return;
     }
 
-    checkbox.disabled = true;
-    row.classList.add("is-completed");
     const form = document.createElement("form");
-    form.method = "post";
-    form.action = `/contacts/${contact.id}/open`;
+    form.method = state.savedPhoto ? "get" : "post";
+    form.action = state.savedPhoto
+      ? `/contacts/${contact.id}/prepare`
+      : `/contacts/${contact.id}/open`;
     form.target = "_blank";
     form.hidden = true;
     document.body.append(form);
     form.requestSubmit();
     form.remove();
+
+    if (state.savedPhoto) {
+      checkbox.checked = false;
+      return;
+    }
+
+    checkbox.disabled = true;
+    row.classList.add("is-completed");
     window.setTimeout(() => {
       checkbox.disabled = false;
       loadContacts({ quiet: true });
@@ -216,6 +235,46 @@ function updateMessageCount() {
   elements.messageCount.textContent = `${elements.messageInput.value.length} / 2000`;
 }
 
+function templateIsDirty() {
+  return state.messageDirty || state.photoAction !== "keep";
+}
+
+function updateTemplateState() {
+  elements.messageState.textContent = templateIsDirty() ? "تغييرات غير محفوظة" : "محفوظة";
+}
+
+function revokeLocalPhotoUrl() {
+  if (state.localPhotoUrl) {
+    URL.revokeObjectURL(state.localPhotoUrl);
+    state.localPhotoUrl = null;
+  }
+}
+
+function showPhotoPreview(url) {
+  elements.photoPreview.src = url;
+  elements.photoPreview.hidden = false;
+  elements.photoPlaceholder.hidden = true;
+  elements.removePhoto.disabled = false;
+}
+
+function showPhotoPlaceholder() {
+  elements.photoPreview.removeAttribute("src");
+  elements.photoPreview.hidden = true;
+  elements.photoPlaceholder.hidden = false;
+  elements.removePhoto.disabled = true;
+}
+
+function renderSavedPhoto() {
+  revokeLocalPhotoUrl();
+  elements.photoInput.value = "";
+  elements.photoFileName.textContent = "اختر صورة";
+  if (state.savedPhoto) {
+    showPhotoPreview(state.savedPhoto.url);
+  } else {
+    showPhotoPlaceholder();
+  }
+}
+
 async function saveMessage() {
   const message = elements.messageInput.value.trim();
   if (!message) {
@@ -225,16 +284,24 @@ async function saveMessage() {
   }
   setBusy(elements.saveMessage, true, "جارٍ الحفظ…");
   try {
-    const payload = await requestJson("/api/message", {
+    const formData = new FormData();
+    formData.append("message", message);
+    formData.append("photo_action", state.photoAction);
+    if (state.photoAction === "replace") {
+      formData.append("photo", elements.photoInput.files[0]);
+    }
+    const payload = await requestJson("/api/message-template", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: formData,
     });
     state.savedMessage = payload.message;
+    state.savedPhoto = payload.photo;
     state.messageDirty = false;
+    state.photoAction = "keep";
     elements.messageInput.value = payload.message;
-    elements.messageState.textContent = "محفوظة";
-    showToast("تم حفظ الرسالة لكل الأجهزة.");
+    renderSavedPhoto();
+    updateTemplateState();
+    showToast("تم حفظ قالب الرسالة لكل الأجهزة.");
   } catch (error) {
     showToast(error.message, "error");
   } finally {
@@ -355,10 +422,34 @@ elements.searchInput.addEventListener("input", () => {
 
 elements.messageInput.addEventListener("input", () => {
   state.messageDirty = elements.messageInput.value !== state.savedMessage;
-  elements.messageState.textContent = state.messageDirty ? "تغييرات غير محفوظة" : "محفوظة";
+  updateTemplateState();
   updateMessageCount();
 });
 elements.saveMessage.addEventListener("click", saveMessage);
+elements.photoInput.addEventListener("change", () => {
+  const file = elements.photoInput.files[0];
+  if (!file) {
+    state.photoAction = "keep";
+    renderSavedPhoto();
+    updateTemplateState();
+    return;
+  }
+
+  revokeLocalPhotoUrl();
+  state.localPhotoUrl = URL.createObjectURL(file);
+  state.photoAction = "replace";
+  elements.photoFileName.textContent = file.name;
+  showPhotoPreview(state.localPhotoUrl);
+  updateTemplateState();
+});
+elements.removePhoto.addEventListener("click", () => {
+  revokeLocalPhotoUrl();
+  elements.photoInput.value = "";
+  elements.photoFileName.textContent = "اختر صورة";
+  state.photoAction = state.savedPhoto ? "remove" : "keep";
+  showPhotoPlaceholder();
+  updateTemplateState();
+});
 elements.numbersFile.addEventListener("change", () => {
   const file = elements.numbersFile.files[0];
   elements.fileName.textContent = file ? file.name : "اختر ملف numbers.txt";
@@ -395,4 +486,3 @@ window.addEventListener("focus", () => loadContacts({ quiet: true }));
 
 updateMessageCount();
 loadContacts();
-

@@ -15,6 +15,16 @@ CREATE TABLE IF NOT EXISTS workspace (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS workspace_photo (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    content BLOB NOT NULL,
+    digest TEXT NOT NULL,
+    width INTEGER NOT NULL CHECK (width > 0),
+    height INTEGER NOT NULL CHECK (height > 0),
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (id) REFERENCES workspace(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     phone TEXT NOT NULL UNIQUE,
@@ -77,4 +87,3 @@ def init_db_command() -> None:
 def init_app(app) -> None:
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
-

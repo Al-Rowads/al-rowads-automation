@@ -13,13 +13,18 @@ from .routes import bp
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     upload_max_bytes = 2 * 1024 * 1024
+    photo_upload_max_bytes = 10 * 1024 * 1024
     app.config.from_mapping(
         DATABASE=os.environ.get(
             "DATABASE",
             str(Path(app.instance_path) / "tracker.sqlite3"),
         ),
         UPLOAD_MAX_BYTES=upload_max_bytes,
-        MAX_CONTENT_LENGTH=upload_max_bytes + (64 * 1024),
+        PHOTO_UPLOAD_MAX_BYTES=photo_upload_max_bytes,
+        PHOTO_MAX_PIXELS=20_000_000,
+        PHOTO_MAX_DIMENSION=1_600,
+        PHOTO_OUTPUT_MAX_BYTES=12 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=photo_upload_max_bytes + (64 * 1024),
         MAX_CONTACTS=20_000,
         JSON_SORT_KEYS=False,
     )
@@ -38,9 +43,15 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_too_large(_error: RequestEntityTooLarge):
-        message = "حجم الملف يتجاوز الحد الأقصى المسموح به (2 ميجابايت)."
+        is_photo_upload = request.path == "/api/message-template"
+        message = (
+            "حجم الصورة يتجاوز الحد الأقصى المسموح به (10 ميجابايت)."
+            if is_photo_upload
+            else "حجم الملف يتجاوز الحد الأقصى المسموح به (2 ميجابايت)."
+        )
         if request.path.startswith("/api/"):
-            return jsonify(error="upload_too_large", message=message), 413
+            error = "photo_too_large" if is_photo_upload else "upload_too_large"
+            return jsonify(error=error, message=message), 413
         return message, 413
 
     @app.after_request
@@ -51,4 +62,3 @@ def create_app(test_config: dict | None = None) -> Flask:
         return response
 
     return app
-

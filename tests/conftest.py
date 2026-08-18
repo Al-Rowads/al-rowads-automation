@@ -12,7 +12,11 @@ def app(tmp_path):
             "TESTING": True,
             "DATABASE": str(tmp_path / "test.sqlite3"),
             "UPLOAD_MAX_BYTES": 2 * 1024 * 1024,
-            "MAX_CONTENT_LENGTH": (2 * 1024 * 1024) + (64 * 1024),
+            "PHOTO_UPLOAD_MAX_BYTES": 10 * 1024 * 1024,
+            "PHOTO_MAX_PIXELS": 20_000_000,
+            "PHOTO_MAX_DIMENSION": 1_600,
+            "PHOTO_OUTPUT_MAX_BYTES": 12 * 1024 * 1024,
+            "MAX_CONTENT_LENGTH": (10 * 1024 * 1024) + (64 * 1024),
         }
     )
     yield application
@@ -21,4 +25,3 @@ def app(tmp_path):
 @pytest.fixture()
 def client(app):
     return app.test_client()
-

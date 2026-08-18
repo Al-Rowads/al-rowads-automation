@@ -1,13 +1,21 @@
 # WhatsApp Number Tracker
 
-A small Arabic RTL web application for importing a shared list of Iraqi mobile numbers, opening a prefilled WhatsApp message, and tracking which chats have been opened. State is stored in SQLite and is shared across browsers and devices.
+A small Arabic RTL web application for importing a shared list of Iraqi mobile numbers, opening a prefilled WhatsApp message with an optional shared photo, and tracking which chats have been opened. State is stored in SQLite and is shared across browsers and devices.
 
 ## Important behavior
 
-- Checking a pending number records it as complete on the server, then opens a prefilled `wa.me` link in a new tab.
+- Without a template photo, checking a pending number records it as complete on the server and opens a prefilled `wa.me` link in a new tab.
+- When the template includes a photo, checking a number opens a preparation page first. Tapping **Copy photo and open WhatsApp** records it as complete and opens the chat; the operator then pastes the copied photo.
 - A normal WhatsApp link cannot verify that the user pressed **Send**. “Complete” therefore means that the chat was opened, not that WhatsApp delivered the message.
+- WhatsApp may keep the pasted photo and prefilled text separate instead of using the text as the photo caption.
 - Re-importing replaces the list, but matching numbers keep their completion state.
 - The application intentionally has no authentication. Anyone who can reach it can view and change all phone numbers and statuses. Put it behind HTTPS and add network or reverse-proxy access control if that is not acceptable.
+
+## Message photo workflow
+
+The message template can contain one optional photo shared by every contact. JPEG, PNG, and WebP uploads are accepted up to 10 MiB and 20 megapixels. The server validates the image, removes embedded metadata, corrects EXIF orientation, resizes it to fit within 1600×1600, and stores it as PNG in SQLite. Include the database volume in backups because it now contains the saved photo as well as tracker state.
+
+Copying an image from the browser requires HTTPS and a recent browser. If clipboard access is unavailable or denied, the preparation page provides genuine **Download photo** and **Open WhatsApp** actions so the operator can attach it manually. The text is still supplied through the normal `wa.me` link, and sending remains manual.
 
 ## Number file format
 

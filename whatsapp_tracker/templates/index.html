@@ -27,16 +27,32 @@
       <div class="section-heading">
         <div>
           <p class="step-label">الخطوة 1</p>
-          <h2 id="message-heading">نص الرسالة</h2>
+          <h2 id="message-heading">قالب الرسالة</h2>
         </div>
         <span class="save-state" id="message-state" aria-live="polite"></span>
       </div>
       <label class="sr-only" for="message-input">نص رسالة واتساب</label>
       <textarea id="message-input" maxlength="2000" rows="5"
         placeholder="اكتب الرسالة التي ستظهر جاهزة في واتساب…"></textarea>
+      <div class="photo-editor">
+        <div class="photo-preview-frame" id="photo-preview-frame">
+          <img id="photo-preview" alt="معاينة صورة قالب الرسالة" hidden>
+          <span id="photo-placeholder">لا توجد صورة محفوظة</span>
+        </div>
+        <div class="photo-controls">
+          <p class="hint">صورة اختيارية مشتركة لكل الأرقام. JPEG أو PNG أو WebP، وبحد أقصى 10 ميجابايت.</p>
+          <div class="photo-actions">
+            <label class="file-picker photo-picker" for="photo-input">
+              <span id="photo-file-name">اختر صورة</span>
+              <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp">
+            </label>
+            <button class="button button-quiet" id="remove-photo" type="button" disabled>إزالة الصورة</button>
+          </div>
+        </div>
+      </div>
       <div class="field-footer">
         <span id="message-count">0 / 2000</span>
-        <button class="button button-primary" id="save-message" type="button">حفظ الرسالة</button>
+        <button class="button button-primary" id="save-message" type="button">حفظ القالب</button>
       </div>
     </section>
 

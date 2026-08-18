@@ -83,6 +83,7 @@ def test_health_and_home(client):
     home = client.get("/")
     assert home.status_code == 200
     assert 'lang="ar"' in home.get_data(as_text=True)
+    assert 'id="photo-input"' in home.get_data(as_text=True)
 
 
 def test_search_rejects_non_ascii_digits(client):
